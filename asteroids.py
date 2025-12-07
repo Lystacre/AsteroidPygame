@@ -1,6 +1,24 @@
+#------------------------------------------------------------------------------------#
+#                                                                                    #
+#                                   ASTEROIDS:                                       #
+#                                  The Original                                      #
+#                                  (But ReMade)                                      #
+#                                                                                    #
+#                           Groupe : Camille Decroly                                 #
+#                                                                                    #
+#                                                                                    #
+#                  Jeu "Asteroids" original par Atari, inc (1979)                    #
+#       Créé par Lyle Rains (designer) and Ed Logg (designer et programmeur)         #
+#                                                                                    #
+#          Théorie mathématique derrière le systeme de collision d'après :           #
+#                  https://www.youtube.com/watch?v=dn0hUgsok9M                       #
+#                                                                                    #
+#------------------------------------------------------------------------------------#
+
 import pygame
 import math
 from random import randint
+
 # region # -- CONSTANTS -- #
 # -- Element sizes -- #
 X = 0
@@ -366,7 +384,12 @@ def collisionCheck():
 
                 separatingAxis = [vectY, vectX]
             
+def isColliding():
+    isColliding = True
+    
 
+
+    return isColliding
 
 
 def dotProduct(vect, a, b):
