@@ -1,24 +1,29 @@
 import pygame
 import math
-import random
+from random import randint
 # region # -- CONSTANTS -- #
 # -- Element sizes -- #
-WINDOW_SIZE = (1280, 1024)
-
 X = 0
 Y = 1
+
+WINDOW_SIZE = (1280, 1024)
+CENTER = (WINDOW_SIZE[X]/2, WINDOW_SIZE[Y]/2)
+
+
 FPS = 50
 PI = math.pi
 LINE = 2
+FORCE = 0.0005
 
-FORCE = 0.001
-
-# -- Ship constants --
+# -- Ship constants -- #
 SHIP_R = 25
 SHIP_W = 1
 SHIP_R_SPEED = PI/30
+BULLET_R = 1
+BULLET_W = 0.0001
+BULLET_SPEED = 0.5
 
-# -- Asteroid constants --
+# -- Asteroid constants -- #
 A_SPEED = 20
 
 BIG_A_R = 50
@@ -29,6 +34,7 @@ MEDIUM_A_R = 30
 MEDIUM_A_W = 1
 MEDIUM_A_R_SPEED = PI/100
 
+# -- Bullets constants -- #
 
 SMALL_A_R = 15
 SMALL_A_W = 0.8
@@ -61,7 +67,7 @@ def init_Data():
 def new_entity():
     return {
         'species': None,
-        'visible':False,
+        'visible': False,
         'size': 0,
         'position': [0,0],
         'angle': 0,
@@ -74,7 +80,11 @@ def new_entity():
         'propulsion': 0,
         'propulsion_str': [0,0],
         'rotation_side': 0,
-        'rotation_speed': 0
+        'rotation_speed': 0,
+        'lifetime': 0,
+        'cooldown': 0,
+        'shooting': 0
+
     }
 
 # region ---- Entity Methods ---- #
@@ -87,6 +97,12 @@ def visible(entity):
 def invisble(entity):
     entity['visible'] = False
 
+def shooting(entity):
+    entity['shooting'] = True
+
+def notShooting(entity):
+    entity['shooting'] = False
+
 def setSize(entity, size):
     entity['size'] = size
 
@@ -96,6 +112,10 @@ def isVisible(entity):
 def setAngle(entity, rad):
     entity['angle'] = rad
 
+def setSpeed(entity, speed):
+    entity['prev_speed'] = speed
+    entity['speed'] = speed
+
 def setPosition(entity, x, y):
     entity['position'][0] = x
     entity['position'][1] = y
@@ -104,15 +124,61 @@ def setWeight(entity, w):
     entity['weight'] = w
 
 def setRotationSide(entity):
-    entity['rotation_side'] = random.randint(0,1)
+    entity['rotation_side'] = randint(0,1)
 
 def setRotationSpeed(entity, speed):
     entity['rotation_speed'] = speed
+
+def setLifetime(entity, time):
+    entity['lifetime'] = time
+
+def setRandomPos(entity):
+    x_pos = CENTER[X]
+    y_pos = CENTER[Y]
+    while x_pos >= 200 and x_pos <= WINDOW_SIZE[X] - 200:
+        x_pos = randint(0,WINDOW_SIZE[X])    
+
+    while y_pos >= 200 and y_pos <= WINDOW_SIZE[Y] - 200:
+        y_pos = randint(0,WINDOW_SIZE[Y])
+
+    entity['position'] = [x_pos, y_pos]
+
+def setRandomSpeed(entity, max, min):
+    x_speed = 0
+    y_speed = 0
+
+    while x_speed >= -min and x_speed <= min:
+        x_speed = randint(-max, max) 
+    
+    while y_speed >= -min and y_speed <= min:
+        y_speed = randint(-max, max)
+    
+    x_speed *= 0.01
+    y_speed *= 0.01
+
+    entity['prev_speed'] = [x_speed, y_speed]
+    entity['speed'] = [x_speed, y_speed]
 
 def speed(entity, dt):
     entity['speed'][X] = entity['prev_speed'][X] + dt * entity['acceleration'][X]
     entity['speed'][Y] = entity['prev_speed'][Y] + dt * entity['acceleration'][Y]
     entity['prev_speed'] = entity['speed']
+
+def newBullet(position, speed, angle):
+    bullet = new_entity()
+    x_pos = position[X] + SHIP_R * math.cos(angle)
+    y_pos = position[Y] + SHIP_R * math.sin(angle)
+    setSpecies(bullet, 'bullet')
+    setSize(bullet, BULLET_R)
+    setSpeed(bullet, speed)
+    setWeight(bullet, BULLET_W)
+    setPosition(bullet, x_pos, y_pos)
+    setLifetime(bullet, 50)
+    setAngle(bullet, angle)
+    visible(bullet)
+
+    addEntity(scene, bullet)
+    
 
 def acceleration(entity, w):
     entity['acceleration'][X] = entity['propulsion_str'][X]/w
@@ -130,14 +196,17 @@ def move(entity, currentTime):
     entity['position'][X] += dt * entity['speed'][X]
     entity['position'][Y] += dt * entity['speed'][Y]
     
-    if entity['position'][X] < -25:
-        entity['position'][X] = WINDOW_SIZE[X] + 25
-    elif entity['position'][X] > WINDOW_SIZE[X] + 25:
-        entity['position'][X] = -25
-    if entity['position'][Y] < -25:
-        entity['position'][Y] = WINDOW_SIZE[Y] + 25
-    elif entity['position'][Y] > WINDOW_SIZE[Y] + 25:
-        entity['position'][Y] = -25
+
+    if entity['position'][X] < - (entity['size'] + 10):
+        entity['position'][X] = WINDOW_SIZE[X] + (entity['size'] + 10)
+    elif entity['position'][X] > WINDOW_SIZE[X] + (entity['size'] + 10):
+        entity['position'][X] = -(entity['size'] + 10)
+
+    if entity['position'][Y] < -(entity['size'] + 10):
+        entity['position'][Y] = WINDOW_SIZE[Y] + (entity['size'] + 10)
+    elif entity['position'][Y] > WINDOW_SIZE[Y] + (entity['size'] + 10):
+        entity['position'][Y] = -(entity['size'] + 10)
+
 
     setPointList(entity, entity['species'], entity['position'], entity['angle'], entity['rModList'])
 
@@ -148,7 +217,7 @@ def rotate(entity, currentTime, key, speed):
         entity['angle'] += speed
     elif key == TURN_LEFT or key == 1:
         entity['angle'] -= speed
-    print(entity['angle'])
+    
     setPointList(entity, entity['species'], entity['position'], entity['angle'], entity['rModList'])
 
 def setPointList(entity, species, position, angle, rmod):
@@ -200,10 +269,13 @@ def points_asteroid(p, r, angle, modList):
     return [p1, p2, p3, p4, p5, p6, p7, p8, p9, p10]
 
 def rand_r(inf, sup):
-    return random.randint(inf, sup)
+    return randint(inf, sup)
 
 def draw(entity):
-    pygame.draw.polygon(window, LIGHT_BLUE, entity['pointList'], LINE)
+    if entity['species'] == 'bullet':
+        pygame.draw.circle(window, LIGHT_BLUE, entity['position'], entity['size'], LINE)
+    else:
+        pygame.draw.polygon(window, LIGHT_BLUE, entity['pointList'], LINE)
 
 # endregion
 
@@ -228,9 +300,21 @@ def actors(scene):
     return list(scene['actors'])
 
 def update(scene, currentTime):
+    global prev_time
+    dt = currentTime - prev_time
     myScene = actors(scene)
     for entity in myScene:
         move(entity, currentTime)
+        if entity['shooting'] == True:
+            if entity['cooldown'] <= 0.0:
+                shoot()
+                entity['cooldown'] = 50
+            else:
+                entity['cooldown'] -= dt
+        if entity['lifetime'] > 0 and entity['species'] == 'bullet':
+            entity['lifetime'] -= 1
+            if entity['lifetime'] == 0:
+                removeEntity(scene, entity)
 
 def display(scene):
     entities = actors(scene)
@@ -249,12 +333,54 @@ def interactions():
             gameOver = True
         elif event.type == pygame.KEYDOWN:
             handling_keys(event.key)
+        elif event.type == pygame.KEYUP:
+            if event.key == SHOOT:
+                notShooting(ship)
                 
 def handling_keys(key):
     if key == TURN_LEFT or key == TURN_RIGHT:
         rotate(ship, current_time, key, ship['rotation_speed'])
     if key == ACCELERATE:
         ship['propulsion'] = 3
+    if key == SHOOT:
+        shooting(ship)
+
+def shoot():
+
+    bullet_angle = ship['angle']
+
+    speed_X = math.cos(bullet_angle) * BULLET_SPEED
+    speed_Y = math.sin(bullet_angle) * BULLET_SPEED
+    newBullet(ship['position'], [speed_X, speed_Y], bullet_angle)
+
+def collisionCheck():
+    checkList = []
+
+    for actor in actors(scene):
+        if actor['species'] != 'ship':
+            for actorPoint in actor['pointlist']:
+                a, b = actorPoint['pointList'][actorPoint]
+                c, d = actorPoint['pointList'][actorPoint + 1]
+                vectX = a - c 
+                vectY = b - d
+
+                separatingAxis = [vectY, vectX]
+            
+
+
+
+def dotProduct(vect, a, b):
+    unitVect = calcAngleUnitVector(vect)
+    return 
+
+
+def calcAngleUnitVector(vect):
+    angleRad = math.atan2(vect[0], vect[1])
+
+    x = math.cos(angleRad)
+    y = math.sin(angleRad)
+    return [x, y]
+
 # endregion
 
 # endregion
@@ -272,7 +398,7 @@ init_Data()
 ship = new_entity()
 setSpecies(ship, 'ship')
 setSize(ship, SHIP_R)
-setPosition(ship, WINDOW_SIZE[X]/2, WINDOW_SIZE[Y]/2)
+setPosition(ship, CENTER[X], CENTER[Y])
 setAngle(ship, -PI/2)
 setPointList(ship, ship['species'], ship['position'], ship['angle'], ship['rModList'])
 setWeight(ship, SHIP_W)
@@ -281,36 +407,54 @@ visible(ship)
 
 
 # Init Asteroid
-asteroidBig = new_entity()
-setSpecies(asteroidBig, 'asteroid')
-setSize(asteroidBig, BIG_A_R)
-setPosition(asteroidBig, 200, 200)
-setAngle(asteroidBig, PI)
-setRModList(asteroidBig, 10)
-setPointList(asteroidBig, asteroidBig['species'], asteroidBig['position'], asteroidBig['angle'], asteroidBig['rModList'])
-setWeight(asteroidBig, BIG_A_W)
-setRotationSide(asteroidBig)
-setRotationSpeed(asteroidBig, BIG_A_R_SPEED)
-visible(asteroidBig)
+asteroidBig1 = new_entity()
+setSpecies(asteroidBig1, 'asteroid')
+setSize(asteroidBig1, BIG_A_R)
+setRandomPos(asteroidBig1)
+setRandomSpeed(asteroidBig1, 20, 5)
+setAngle(asteroidBig1, PI)
+setRModList(asteroidBig1, 10)
+setPointList(asteroidBig1, asteroidBig1['species'], asteroidBig1['position'], asteroidBig1['angle'], asteroidBig1['rModList'])
+setWeight(asteroidBig1, BIG_A_W)
+setRotationSide(asteroidBig1)
+setRotationSpeed(asteroidBig1, BIG_A_R_SPEED)
+visible(asteroidBig1)
 
-asteroidMed = new_entity()
-setSpecies(asteroidMed, 'asteroid')
-setSize(asteroidMed, MEDIUM_A_R)
-setPosition(asteroidMed, 500, 500)
-setAngle(asteroidMed, PI)
-setRModList(asteroidMed, 10)
-setPointList(asteroidMed, asteroidMed['species'], asteroidMed['position'], asteroidMed['angle'], asteroidMed['rModList'])
-setWeight(asteroidMed, MEDIUM_A_W)
-setRotationSpeed(asteroidMed, MEDIUM_A_R_SPEED)
-setRotationSide(asteroidMed)
-visible(asteroidMed)
+asteroidBig2 = new_entity()
+setSpecies(asteroidBig2, 'asteroid')
+setSize(asteroidBig2, BIG_A_R)
+setRandomPos(asteroidBig2)
+setRandomSpeed(asteroidBig2, 20, 5)
+setAngle(asteroidBig2, PI)
+setRModList(asteroidBig2, 10)
+setPointList(asteroidBig2, asteroidBig1['species'], asteroidBig1['position'], asteroidBig1['angle'], asteroidBig1['rModList'])
+setWeight(asteroidBig2, BIG_A_W)
+setRotationSide(asteroidBig2)
+setRotationSpeed(asteroidBig2, BIG_A_R_SPEED)
+visible(asteroidBig2)
+
+asteroidBig3 = new_entity()
+setSpecies(asteroidBig3, 'asteroid')
+setSize(asteroidBig3, BIG_A_R)
+setRandomPos(asteroidBig3)
+setRandomSpeed(asteroidBig3, 20, 5)
+setAngle(asteroidBig3, PI)
+setRModList(asteroidBig3, 10)
+setPointList(asteroidBig3, asteroidBig1['species'], asteroidBig1['position'], asteroidBig1['angle'], asteroidBig1['rModList'])
+setWeight(asteroidBig3, BIG_A_W)
+setRotationSide(asteroidBig3)
+setRotationSpeed(asteroidBig3, BIG_A_R_SPEED)
+visible(asteroidBig3)
+
 
 
 # Init Scene
 scene = newScene()
 addEntity(scene, ship)
-addEntity(scene, asteroidBig)
-addEntity(scene, asteroidMed)
+addEntity(scene, asteroidBig1)
+addEntity(scene, asteroidBig2)
+addEntity(scene, asteroidBig3)
+
 
 # endregion
 
@@ -324,15 +468,21 @@ while not gameOver:
     current_time = pygame.time.get_ticks()
     window.fill(SPACE_GREY)
 
-    rotate(asteroidBig, current_time, asteroidBig['rotation_side'], asteroidBig['rotation_speed'])
-    rotate(asteroidMed, current_time, asteroidMed['rotation_side'], asteroidMed['rotation_speed'])
+    rotate(asteroidBig1, current_time, asteroidBig1['rotation_side'], asteroidBig1['rotation_speed'])
+    rotate(asteroidBig2, current_time, asteroidBig2['rotation_side'], asteroidBig2['rotation_speed'])
+    rotate(asteroidBig3, current_time, asteroidBig3['rotation_side'], asteroidBig3['rotation_speed'])
+
     # ship Propulsion
     if ship['propulsion'] > 0:
         propulsion(ship, FORCE, ship['angle'])
         ship['propulsion'] -= 1
     else:
         ship['propulsion_str'] = [0,0]
+    
     update(scene, current_time)
+    if inGame:
+        if collisionCheck(ship, 'bullet'):
+            print ("collision")
     display(scene)    
     pygame.display.flip()
     
