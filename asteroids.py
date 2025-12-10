@@ -193,6 +193,8 @@ def setPointList(entity, species, position, angle, rmod):
         entity['pointList'] = points_ship(position, entity['size'], angle)
     elif species == 'asteroid':
         entity['pointList'] = points_asteroid(position, entity['size'], angle, rmod)
+    elif species == 'bullet':
+        entity['pointList'] = [position]
 
 def setRModList(entity, size):
     i = 0
@@ -233,7 +235,7 @@ def move(entity, currentTime):
     elif entity['position'][Y] > WINDOW_SIZE[Y] + (entity['size'] + 10):
         entity['position'][Y] = -(entity['size'] + 10)
 
-
+    
     setPointList(entity, entity['species'], entity['position'], entity['angle'], entity['rModList'])
 
 def rotate(entity, currentTime, key, speed):
@@ -248,6 +250,48 @@ def rotate(entity, currentTime, key, speed):
 # endregion
 
 # region - Specific entity creation - #
+def newShip():
+    global ship
+    ship = new_entity()
+    setSpecies(ship, 'ship')
+    setSize(ship, SHIP_R)
+    setPosition(ship, CENTER[X], CENTER[Y])
+    setAngle(ship, -PI/2)
+    setPointList(ship, ship['species'], ship['position'], ship['angle'], ship['rModList'])
+    setWeight(ship, SHIP_W)
+    setRotationSpeed(ship, SHIP_R_SPEED)
+    visible(ship)
+
+    addEntity(scene, ship)
+
+def newAsteroid(size, pos):
+    asteroid = new_entity()
+    setSpecies(asteroid, 'asteroid')
+    if size == 'big':
+        setSize(asteroid, BIG_A_R)
+        setWeight(asteroid, BIG_A_W)
+        setRotationSpeed(asteroid, BIG_A_R_SPEED)
+        setRandomSpeed(asteroid, 20, 5)
+        setRandomPos(asteroid)
+    elif size == 'medium':
+        setSize(asteroid, MEDIUM_A_R)
+        setWeight(asteroid, MEDIUM_A_W)
+        setRotationSpeed(asteroid, MEDIUM_A_R_SPEED)
+        setRandomSpeed(asteroid, 30, 10)
+        setPosition(asteroid, pos[X], pos[Y])
+    elif size == 'small':
+        setSize(asteroid, SMALL_A_R)
+        setWeight(asteroid, SMALL_A_W)
+        setRotationSpeed(asteroid, SMALL_A_R_SPEED)
+        setRandomSpeed(asteroid, 40, 15)
+        setPosition(asteroid, pos[X], pos[Y])
+    setAngle(asteroid, PI)
+    setRModList(asteroid, 10)
+    setPointList(asteroid, asteroid['species'], asteroid['position'], asteroid['angle'], asteroid['rModList'])
+    setRotationSide(asteroid)
+    visible(asteroid)
+
+    addEntity(scene, asteroid)
 
 def newBullet(position, speed, angle):
     bullet = new_entity()
@@ -261,12 +305,13 @@ def newBullet(position, speed, angle):
     setLifetime(bullet, 50)
     setAngle(bullet, angle)
     visible(bullet)
+    setPointList(bullet, bullet['species'], bullet['position'], bullet['angle'], bullet['rModList'])
 
     addEntity(scene, bullet)
 
 # endregion
 
-# region - Collision System - #
+# region - Collision System - Separating Axis Theorem # 
 
 
 def checkCollision(entityA, entityB):
@@ -421,6 +466,27 @@ def update(scene, currentTime):
             entity['lifetime'] -= 1
             if entity['lifetime'] == 0:
                 removeEntity(scene, entity)
+            # ship Propulsion
+        if entity['propulsion'] > 0:
+            propulsion(entity, FORCE, entity['angle'])
+            entity['propulsion'] -= 1
+        else:
+            entity['propulsion_str'] = [0,0]
+        if entity['species'] == 'asteroid':
+            rotate(entity, current_time, entity['rotation_side'], entity['rotation_speed'])
+            for entity2 in myScene:
+                if entity2['species'] == 'bullet':
+                        if checkCollision(entity, entity2) == True:
+                            print("pew pew")
+
+        if entity['species'] == 'ship':
+            for entity2 in myScene:
+                if entity2['species'] == 'asteroid':  
+                        if checkCollision(entity, entity2) == True:
+                            print("collision")
+                        # else :
+                        #     print("pas collision")
+
 
 def display(scene):
     entities = actors(scene)
@@ -433,7 +499,7 @@ def display(scene):
 
 # region ### GAME MANIPULATIONS -- #
 def interactions():
-    global gameOver, inGame, current_time
+    global gameOver, inGame, current_time, ship
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             gameOver = True
@@ -452,7 +518,6 @@ def handling_keys(key):
         shooting(ship)
 
 def shoot():
-
     bullet_angle = ship['angle']
 
     speed_X = math.cos(bullet_angle) * BULLET_SPEED
@@ -470,70 +535,19 @@ pygame.display.set_caption('Asteroids: The Original (But Remade Based on What I 
 # region # -- INIT -- #
 init_Data()
 
-# Init Ship
-ship = new_entity()
-setSpecies(ship, 'ship')
-setSize(ship, SHIP_R)
-setPosition(ship, CENTER[X], CENTER[Y])
-setAngle(ship, -PI/2)
-setPointList(ship, ship['species'], ship['position'], ship['angle'], ship['rModList'])
-setWeight(ship, SHIP_W)
-setRotationSpeed(ship, SHIP_R_SPEED)
-visible(ship)
-
-
-# Init Asteroid
-asteroidBig1 = new_entity()
-setSpecies(asteroidBig1, 'asteroid')
-setSize(asteroidBig1, BIG_A_R)
-setRandomPos(asteroidBig1)
-setRandomSpeed(asteroidBig1, 20, 5)
-setAngle(asteroidBig1, PI)
-setRModList(asteroidBig1, 10)
-setPointList(asteroidBig1, asteroidBig1['species'], asteroidBig1['position'], asteroidBig1['angle'], asteroidBig1['rModList'])
-setWeight(asteroidBig1, BIG_A_W)
-setRotationSide(asteroidBig1)
-setRotationSpeed(asteroidBig1, BIG_A_R_SPEED)
-visible(asteroidBig1)
-
-# asteroidBig2 = new_entity()
-# setSpecies(asteroidBig2, 'asteroid')
-# setSize(asteroidBig2, BIG_A_R)
-# setRandomPos(asteroidBig2)
-# setRandomSpeed(asteroidBig2, 20, 5)
-# setAngle(asteroidBig2, PI)
-# setRModList(asteroidBig2, 10)
-# setPointList(asteroidBig2, asteroidBig1['species'], asteroidBig1['position'], asteroidBig1['angle'], asteroidBig1['rModList'])
-# setWeight(asteroidBig2, BIG_A_W)
-# setRotationSide(asteroidBig2)
-# setRotationSpeed(asteroidBig2, BIG_A_R_SPEED)
-# visible(asteroidBig2)
-
-# asteroidBig3 = new_entity()
-# setSpecies(asteroidBig3, 'asteroid')
-# setSize(asteroidBig3, BIG_A_R)
-# setRandomPos(asteroidBig3)
-# setRandomSpeed(asteroidBig3, 20, 5)
-# setAngle(asteroidBig3, PI)
-# setRModList(asteroidBig3, 10)
-# setPointList(asteroidBig3, asteroidBig1['species'], asteroidBig1['position'], asteroidBig1['angle'], asteroidBig1['rModList'])
-# setWeight(asteroidBig3, BIG_A_W)
-# setRotationSide(asteroidBig3)
-# setRotationSpeed(asteroidBig3, BIG_A_R_SPEED)
-# visible(asteroidBig3)
-
-
-
 # Init Scene
 scene = newScene()
-addEntity(scene, ship)
-addEntity(scene, asteroidBig1)
-# addEntity(scene, asteroidBig2)
-# addEntity(scene, asteroidBig3)
 
+# Init Ship
+newShip()
+
+# Init Asteroid
+i = 0
+while i < 3:
+    newAsteroid('big',[0,0])
+    i += 1
 
 # endregion
-
 inGame = True
 gameOver = False
 time = pygame.time.Clock()
@@ -543,31 +557,9 @@ while not gameOver:
     interactions()
     current_time = pygame.time.get_ticks()
     window.fill(SPACE_GREY)
-
-    rotate(asteroidBig1, current_time, asteroidBig1['rotation_side'], asteroidBig1['rotation_speed'])
-    # rotate(asteroidBig2, current_time, asteroidBig2['rotation_side'], asteroidBig2['rotation_speed'])
-    # rotate(asteroidBig3, current_time, asteroidBig3['rotation_side'], asteroidBig3['rotation_speed'])
-
-    # ship Propulsion
-    if ship['propulsion'] > 0:
-        propulsion(ship, FORCE, ship['angle'])
-        ship['propulsion'] -= 1
-    else:
-        ship['propulsion_str'] = [0,0]
-    
-    if checkCollision(ship, asteroidBig1) == True:
-        print("collision")
-    else :
-        print("pas collision")
-    # if checkCollision(ship, asteroidBig2):
-    #     print("collision")
-    # if checkCollision(ship, asteroidBig3):
-    #     print("collision")
     update(scene, current_time)
-
     display(scene)    
     pygame.display.flip()
-    
     time.tick(FPS)
     prev_time = current_time
 
