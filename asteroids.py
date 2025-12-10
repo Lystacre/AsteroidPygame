@@ -46,17 +46,15 @@ BULLET_SPEED = 0.5
 A_SPEED = 20
 
 BIG_A_R = 50
-BIG_A_W = 2.5
+BIG_A_W = 3
 BIG_A_R_SPEED = PI/250
 
 MEDIUM_A_R = 30
-MEDIUM_A_W = 1
+MEDIUM_A_W = 2
 MEDIUM_A_R_SPEED = PI/100
 
-# -- Bullets constants -- #
-
 SMALL_A_R = 15
-SMALL_A_W = 0.8
+SMALL_A_W = 1
 SMALL_A_R_SPEED = PI/75
 
 
@@ -88,6 +86,7 @@ def new_entity():
         'species': None,
         'visible': False,
         'size': 0,
+        'rayon': 1,
         'position': [0,0],
         'angle': 0,
         'weight': 0,
@@ -126,14 +125,19 @@ def shooting(entity):
 def notShooting(entity):
     entity['shooting'] = False
 
-def setSize(entity, size):
-    entity['size'] = size
+def setRayon(entity, rayon):
+    entity['rayon'] = rayon
+
+
 
 def isVisible(entity):
     return entity['visible']
 
 def setAngle(entity, rad):
     entity['angle'] = rad
+
+def setSize(entity, size):
+    entity['size'] = size
 
 def setSpeed(entity, speed):
     entity['prev_speed'] = speed
@@ -190,9 +194,9 @@ def speed(entity, dt):
 
 def setPointList(entity, species, position, angle, rmod):
     if species == 'ship':
-        entity['pointList'] = points_ship(position, entity['size'], angle)
+        entity['pointList'] = points_ship(position, entity['rayon'], angle)
     elif species == 'asteroid':
-        entity['pointList'] = points_asteroid(position, entity['size'], angle, rmod)
+        entity['pointList'] = points_asteroid(position, entity['rayon'], angle, rmod)
     elif species == 'bullet':
         entity['pointList'] = [position]
 
@@ -225,15 +229,15 @@ def move(entity, currentTime):
     entity['position'][Y] += dt * entity['speed'][Y]
     
 
-    if entity['position'][X] < - (entity['size'] + 10):
-        entity['position'][X] = WINDOW_SIZE[X] + (entity['size'] + 10)
-    elif entity['position'][X] > WINDOW_SIZE[X] + (entity['size'] + 10):
-        entity['position'][X] = -(entity['size'] + 10)
+    if entity['position'][X] < - (entity['rayon'] + 10):
+        entity['position'][X] = WINDOW_SIZE[X] + (entity['rayon'] + 10)
+    elif entity['position'][X] > WINDOW_SIZE[X] + (entity['rayon'] + 10):
+        entity['position'][X] = -(entity['rayon'] + 10)
 
-    if entity['position'][Y] < -(entity['size'] + 10):
-        entity['position'][Y] = WINDOW_SIZE[Y] + (entity['size'] + 10)
-    elif entity['position'][Y] > WINDOW_SIZE[Y] + (entity['size'] + 10):
-        entity['position'][Y] = -(entity['size'] + 10)
+    if entity['position'][Y] < -(entity['rayon'] + 10):
+        entity['position'][Y] = WINDOW_SIZE[Y] + (entity['rayon'] + 10)
+    elif entity['position'][Y] > WINDOW_SIZE[Y] + (entity['rayon'] + 10):
+        entity['position'][Y] = -(entity['rayon'] + 10)
 
     
     setPointList(entity, entity['species'], entity['position'], entity['angle'], entity['rModList'])
@@ -254,7 +258,7 @@ def newShip():
     global ship
     ship = new_entity()
     setSpecies(ship, 'ship')
-    setSize(ship, SHIP_R)
+    setRayon(ship, SHIP_R)
     setPosition(ship, CENTER[X], CENTER[Y])
     setAngle(ship, -PI/2)
     setPointList(ship, ship['species'], ship['position'], ship['angle'], ship['rModList'])
@@ -267,20 +271,21 @@ def newShip():
 def newAsteroid(size, pos):
     asteroid = new_entity()
     setSpecies(asteroid, 'asteroid')
-    if size == 'big':
-        setSize(asteroid, BIG_A_R)
+    setSize(asteroid, size)
+    if size == 3:
+        setRayon(asteroid, BIG_A_R)
         setWeight(asteroid, BIG_A_W)
         setRotationSpeed(asteroid, BIG_A_R_SPEED)
         setRandomSpeed(asteroid, 20, 5)
         setRandomPos(asteroid)
-    elif size == 'medium':
-        setSize(asteroid, MEDIUM_A_R)
+    elif size == 2:
+        setRayon(asteroid, MEDIUM_A_R)
         setWeight(asteroid, MEDIUM_A_W)
         setRotationSpeed(asteroid, MEDIUM_A_R_SPEED)
         setRandomSpeed(asteroid, 30, 10)
         setPosition(asteroid, pos[X], pos[Y])
-    elif size == 'small':
-        setSize(asteroid, SMALL_A_R)
+    elif size == 1:
+        setRayon(asteroid, SMALL_A_R)
         setWeight(asteroid, SMALL_A_W)
         setRotationSpeed(asteroid, SMALL_A_R_SPEED)
         setRandomSpeed(asteroid, 40, 15)
@@ -298,7 +303,7 @@ def newBullet(position, speed, angle):
     x_pos = position[X] + SHIP_R * math.cos(angle)
     y_pos = position[Y] + SHIP_R * math.sin(angle)
     setSpecies(bullet, 'bullet')
-    setSize(bullet, BULLET_R)
+    setRayon(bullet, BULLET_R)
     setSpeed(bullet, speed)
     setWeight(bullet, BULLET_W)
     setPosition(bullet, x_pos, y_pos)
@@ -423,7 +428,7 @@ def rand_r(inf, sup):
 
 def draw(entity):
     if entity['species'] == 'bullet':
-        pygame.draw.circle(window, LIGHT_BLUE, entity['position'], entity['size'], LINE)
+        pygame.draw.circle(window, LIGHT_BLUE, entity['position'], entity['rayon'], LINE)
     else:
         pygame.draw.polygon(window, LIGHT_BLUE, entity['pointList'], LINE)
 
@@ -455,7 +460,7 @@ def update(scene, currentTime):
     myScene = actors(scene)
     for entity in myScene:
         move(entity, currentTime)
-        
+
         if entity['shooting'] == True:
             if entity['cooldown'] <= 0.0:
                 shoot()
@@ -476,8 +481,16 @@ def update(scene, currentTime):
             rotate(entity, current_time, entity['rotation_side'], entity['rotation_speed'])
             for entity2 in myScene:
                 if entity2['species'] == 'bullet':
-                        if checkCollision(entity, entity2) == True:
-                            print("pew pew")
+                    if checkCollision(entity, entity2) == True:
+                        print("pew pew")
+                        if entity['size'] > 1:
+                            for _ in range(3):
+                                print(f"Asteroid size = {entity['size']}")
+                                newAsteroid(entity['size']-1, entity['position'])
+                        removeEntity(scene, entity)
+                        removeEntity(scene, entity2)
+
+
 
         if entity['species'] == 'ship':
             for entity2 in myScene:
@@ -544,7 +557,7 @@ newShip()
 # Init Asteroid
 i = 0
 while i < 3:
-    newAsteroid('big',[0,0])
+    newAsteroid(3,[0,0])
     i += 1
 
 # endregion
