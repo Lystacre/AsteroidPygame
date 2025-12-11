@@ -34,6 +34,8 @@ PI = math.pi
 LINE = 2
 FORCE = 0.0005
 
+MAX_HEALTH = 3
+
 # -- Ship constants -- #
 SHIP_R = 25
 SHIP_W = 1
@@ -63,10 +65,14 @@ TURN_LEFT = pygame.K_LEFT
 TURN_RIGHT = pygame.K_RIGHT
 ACCELERATE = pygame.K_UP
 SHOOT = pygame.K_SPACE
+PAUSE = pygame.K_p
+MENU = pygame.K_ESCAPE
 
 # -- Colours -- #
-SPACE_GREY = ( 20,  20,  20)
-LIGHT_BLUE = (220, 235, 255)
+SPACE_GREY =    ( 20,  20,  20)
+LIGHT_BLUE =    (220, 235, 255)
+DARK_RED =      (235,  20,  20)
+DARKER_BLUE =   (135, 150, 205)
 
 # endregion
 
@@ -88,6 +94,7 @@ def new_entity():
         'size': 0,
         'rayon': 1,
         'position': [0,0],
+        'color': LIGHT_BLUE,
         'angle': 0,
         'weight': 0,
         'pointList': [],
@@ -100,6 +107,7 @@ def new_entity():
         'rotation_side': 0,
         'rotation_speed': 0,
         'lifetime': 0,
+        'invulnerable': 0,
         'cooldown': 0,
         'shooting': 0,
         'normalList':[],
@@ -282,13 +290,13 @@ def newAsteroid(size, pos):
         setRayon(asteroid, MEDIUM_A_R)
         setWeight(asteroid, MEDIUM_A_W)
         setRotationSpeed(asteroid, MEDIUM_A_R_SPEED)
-        setRandomSpeed(asteroid, 30, 10)
+        setRandomSpeed(asteroid, 21, 5)
         setPosition(asteroid, pos[X], pos[Y])
     elif size == 1:
         setRayon(asteroid, SMALL_A_R)
         setWeight(asteroid, SMALL_A_W)
         setRotationSpeed(asteroid, SMALL_A_R_SPEED)
-        setRandomSpeed(asteroid, 40, 15)
+        setRandomSpeed(asteroid, 22, 5)
         setPosition(asteroid, pos[X], pos[Y])
     setAngle(asteroid, PI)
     setRModList(asteroid, 10)
@@ -313,6 +321,10 @@ def newBullet(position, speed, angle):
     setPointList(bullet, bullet['species'], bullet['position'], bullet['angle'], bullet['rModList'])
 
     addEntity(scene, bullet)
+
+def newAlert(position):
+    alert = new_entity()
+
 
 # endregion
 
@@ -428,9 +440,9 @@ def rand_r(inf, sup):
 
 def draw(entity):
     if entity['species'] == 'bullet':
-        pygame.draw.circle(window, LIGHT_BLUE, entity['position'], entity['rayon'], LINE)
+        pygame.draw.circle(window, entity['color'], entity['position'], entity['rayon'], LINE)
     else:
-        pygame.draw.polygon(window, LIGHT_BLUE, entity['pointList'], LINE)
+        pygame.draw.polygon(window, entity['color'], entity['pointList'], LINE)
 
 # endregion
 
@@ -454,31 +466,50 @@ def removeEntity(scene, entity):
 def actors(scene):
     return list(scene['actors'])
 
-def update(scene, currentTime):
-    global prev_time
-    dt = currentTime - prev_time
-    myScene = actors(scene)
-    for entity in myScene:
-        move(entity, currentTime)
-
-        if entity['shooting'] == True:
+def shootingTest(entity, dt):
+    if entity['shooting'] == True:
             if entity['cooldown'] <= 0.0:
                 shoot()
                 entity['cooldown'] = 50
             else:
                 entity['cooldown'] -= dt
-        if entity['lifetime'] > 0 and entity['species'] == 'bullet':
-            entity['lifetime'] -= 1
-            if entity['lifetime'] == 0:
-                removeEntity(scene, entity)
-            # ship Propulsion
-        if entity['propulsion'] > 0:
-            propulsion(entity, FORCE, entity['angle'])
-            entity['propulsion'] -= 1
-        else:
-            entity['propulsion_str'] = [0,0]
+
+def dtHandeling(entity, dt):
+    if entity['lifetime'] > 0 and entity['species'] == 'bullet':
+        entity['lifetime'] -= 1
+        if entity['lifetime'] == 0:
+            removeEntity(scene, entity)
+    if entity['invulnerable'] > 0:
+        entity['invulnerable'] -= dt
+        entity['color'] = DARKER_BLUE
+    else:
+        entity['color'] = LIGHT_BLUE
+
+def propulsionHandeling(entity):
+    if entity['propulsion'] > 0:
+        propulsion(entity, FORCE, entity['angle'])
+        entity['propulsion'] -= 1
+    else:
+        entity['propulsion_str'] = [0,0]
+
+def update(scene, currentTime):
+    global prev_time, remaining_health, gameOver, score
+    dt = currentTime - prev_time
+    myScene = actors(scene)
+    for entity in myScene:
+        
+        move(entity, currentTime)
+        
+        shootingTest(entity, dt)
+        
+        dtHandeling(entity, dt)
+ 
+        propulsionHandeling(entity)
+        
         if entity['species'] == 'asteroid':
+        
             rotate(entity, current_time, entity['rotation_side'], entity['rotation_speed'])
+            
             for entity2 in myScene:
                 if entity2['species'] == 'bullet':
                     if checkCollision(entity, entity2) == True:
@@ -487,34 +518,48 @@ def update(scene, currentTime):
                             for _ in range(3):
                                 print(f"Asteroid size = {entity['size']}")
                                 newAsteroid(entity['size']-1, entity['position'])
+                                if entity['size'] == 3:
+                                    score += 20
+                                elif entity['size'] == 2:
+                                    score += 50
+                        elif entity['size'] == 1:
+                            score += 100
                         removeEntity(scene, entity)
                         removeEntity(scene, entity2)
-
-
-
         if entity['species'] == 'ship':
             for entity2 in myScene:
-                if entity2['species'] == 'asteroid':  
-                        if checkCollision(entity, entity2) == True:
-                            print("collision")
-                        # else :
-                        #     print("pas collision")
+                if entity2['species'] == 'asteroid':      
+                    if checkCollision(entity, entity2) == True:
+                        if entity['invulnerable'] > 0:
+                            print("YOU HAVE NO POWER OVER ME")
+                        else:
+                            remaining_health -= 1
+                            print("collision")  
+                            entity['invulnerable'] = 4000
+                            entity['color'] = DARKER_BLUE
+                            if remaining_health < 1:
+                                removeEntity(scene, entity)
+                                gameOver = True
 
 
 def display(scene):
+    global remaining_health
     entities = actors(scene)
     for entity in entities:
         if isVisible(entity):
             draw(entity)
-# endregion
+    for life in range(remaining_health - 1):
+        pygame.draw.polygon(window, LIGHT_BLUE, points_ship((20 + life * 20, 20), 10, -PI/2), LINE)
+# endregion  
 
 # endregion
 
 # region ### GAME MANIPULATIONS -- #
 def interactions():
-    global gameOver, inGame, current_time, ship
+    global gameOver, inGame, current_time, ship, remaining_health
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
+            remaining_health = 0
             gameOver = True
         elif event.type == pygame.KEYDOWN:
             handling_keys(event.key)
@@ -523,12 +568,15 @@ def interactions():
                 notShooting(ship)
                 
 def handling_keys(key):
+    global pause
     if key == TURN_LEFT or key == TURN_RIGHT:
         rotate(ship, current_time, key, ship['rotation_speed'])
     if key == ACCELERATE:
         ship['propulsion'] = 3
     if key == SHOOT:
         shooting(ship)
+    if key == PAUSE:
+        pause = not pause
 
 def shoot():
     bullet_angle = ship['angle']
@@ -539,8 +587,9 @@ def shoot():
 
 # endregion
 
+# endregion
 pygame.init()
-pygame.key.set_repeat(10,10)
+pygame.key.set_repeat(100,25)
 
 window = pygame.display.set_mode(WINDOW_SIZE)
 pygame.display.set_caption('Asteroids: The Original (But Remade Based on What I Think It Is)')
@@ -565,16 +614,29 @@ inGame = True
 gameOver = False
 time = pygame.time.Clock()
 
-while not gameOver:
-    global prev_time
-    interactions()
-    current_time = pygame.time.get_ticks()
-    window.fill(SPACE_GREY)
-    update(scene, current_time)
-    display(scene)    
-    pygame.display.flip()
-    time.tick(FPS)
-    prev_time = current_time
+pause = False
+playing = True
+
+remaining_health = MAX_HEALTH
+score = 0
+
+while remaining_health > 0:
+    gameOver = False
+    while not gameOver:
+        global prev_time
+
+        # --- Traites les interactions --- #
+        interactions()
+        current_time = pygame.time.get_ticks()
+        window.fill(SPACE_GREY)
+        
+        if not pause:
+            update(scene, current_time)
+
+        display(scene)    
+        pygame.display.flip()
+        time.tick(FPS)
+        prev_time = current_time
 
 pygame.display.quit()
 pygame.quit()
