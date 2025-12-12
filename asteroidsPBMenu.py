@@ -28,7 +28,6 @@ Y = 1
 WINDOW_SIZE = (1280, 1024)
 CENTER = (WINDOW_SIZE[X]/2, WINDOW_SIZE[Y]/2)
 
-
 FPS = 50
 PI = math.pi
 LINE = 2
@@ -469,11 +468,11 @@ def actors(scene):
 
 def shootingTest(entity, dt):
     if entity['shooting'] == True:
-            if entity['cooldown'] <= 0.0:
-                shoot()
-                entity['cooldown'] = 50
-            else:
-                entity['cooldown'] -= dt
+        if entity['cooldown'] <= 0.0:
+            shoot()
+            entity['cooldown'] = 75
+        else:
+            entity['cooldown'] -= dt
 
 def dtHandeling(entity, dt):
     if entity['lifetime'] > 0 and entity['species'] == 'bullet':
@@ -494,7 +493,7 @@ def propulsionHandeling(entity):
         entity['propulsion_str'] = [0,0]
 
 def update(scene, currentTime):
-    global prev_time, remaining_health, gameOver, score
+    global prev_time, remaining_health, gameOver, score, dead
     dt = currentTime - prev_time
     myScene = actors(scene)
     for entity in myScene:
@@ -508,16 +507,14 @@ def update(scene, currentTime):
         propulsionHandeling(entity)
         
         if entity['species'] == 'asteroid':
-        
             rotate(entity, current_time, entity['rotation_side'], entity['rotation_speed'])
-            
             for entity2 in myScene:
                 if entity2['species'] == 'bullet':
                     if checkCollision(entity, entity2) == True:
-                        print("pew pew")
+                        # print("pew pew")
                         if entity['size'] > 1:
                             for _ in range(3):
-                                print(f"Asteroid size = {entity['size']}")
+                                # print(f"Asteroid size = {entity['size']}")
                                 newAsteroid(entity['size']-1, entity['position'])
                                 if entity['size'] == 3:
                                     score += 20
@@ -527,21 +524,45 @@ def update(scene, currentTime):
                             score += 100
                         removeEntity(scene, entity)
                         removeEntity(scene, entity2)
-        if entity['species'] == 'ship':
+        elif entity['species'] == 'ship':
             for entity2 in myScene:
                 if entity2['species'] == 'asteroid':      
                     if checkCollision(entity, entity2) == True:
-                        if entity['invulnerable'] > 0:
-                            print("YOU HAVE NO POWER OVER ME")
-                        else:
+                        if entity['invulnerable'] <= 0:
                             remaining_health -= 1
-                            print("collision")  
+                            # print("collision")  
                             entity['invulnerable'] = 4000
                             entity['color'] = DARKER_BLUE
                             if remaining_health < 1:
                                 removeEntity(scene, entity)
-                                gameOver = True
+                                dead = True
+                                for entity3 in myScene:
+                                    if entity3['species'] == 'bullet':
+                                        removeEntity(scene, entity3)
+                                
 
+
+def displayGame(scene):
+    window.fill(SPACE_GREY)
+
+    scoreDisp = font_score.render(f'Score : {score}', True, LIGHT_BLUE)
+    score_width, score_height = font.size(f'Score : {score}')
+    window.blit(scoreDisp, (WINDOW_SIZE[0] - (score_width + 20) , 20 ))
+    
+    entities = actors(scene)
+    for entity in entities:
+        if isVisible(entity):
+            draw(entity)
+    for life in range(remaining_health - 1):
+        pygame.draw.polygon(window, LIGHT_BLUE, points_ship((20 + life * 20, 20), 20, -PI/2), LINE)
+
+    if remaining_health == 0:
+        finalScore = font.render(f'Final score : {score}', True, LIGHT_BLUE)
+        finalScore_width, finalScore_height = font.size(f'Final score : {score}')
+        window.blit(finalScore, ((WINDOW_SIZE[X] - finalScore_width)//2, 4 * WINDOW_SIZE[Y] // 5))
+        message1 = font.render("[Q]uitter", True, LIGHT_BLUE)
+        message1_largeur, message1_hauteur = font.size("[Q]quitter")
+        window.blit(message1, ((WINDOW_SIZE[X] - message1_largeur) // 2, 4 * WINDOW_SIZE[Y]  // 5 + 1.2 * message1_hauteur))
 
 def displayStartMenu():
     window.fill(SPACE_GREY)
@@ -556,63 +577,46 @@ def displayStartMenu():
     window.blit(message2, ((WINDOW_SIZE[X] - message2_largeur) // 2, 4 * WINDOW_SIZE[Y] // 5 + 1.2 * message1_hauteur))
 
 
-
-def display(scene):
-    global remaining_health
-    entities = actors(scene)
-
-
-    scoreDisp = font_score.render(f'Score : {score}', True, LIGHT_BLUE)
-    score_width, score_height = font.size(f'Score : {score}')
-    window.blit(scoreDisp, (WINDOW_SIZE[0] - (score_width + 20) , 20 ))
-    
-
-    for entity in entities:
-        if isVisible(entity):
-            draw(entity)
-    for life in range(remaining_health - 1):
-        pygame.draw.polygon(window, LIGHT_BLUE, points_ship((20 + life * 20, 20), 10, -PI/2), LINE)
-
-    if remaining_health == 0:
-        finalScore = font.render(f'Final score : {score}', True, LIGHT_BLUE)
-        finalScore_width, finalScore_height = font.size(f'Final score : {score}')
-        window.blit(finalScore, ((WINDOW_SIZE[X] - finalScore_width)//2, 4 * WINDOW_SIZE[Y] // 5))
-        message1 = font.render("[Q]uitter", True, LIGHT_BLUE)
-        message1_largeur, message1_hauteur = font.size("[Q]quitter")
-        window.blit(message1, ((WINDOW_SIZE[X] - message1_largeur) // 2, 4 * WINDOW_SIZE[Y]  // 5 + 1.2 * message1_hauteur))
-
 # endregion  
 
 # endregion
 
 # region ### GAME MANIPULATIONS -- #
 def interactions():
-    global gameOver, playing, current_time, ship, remaining_health
+    global gameOver, current_time, remaining_health, pause, playing
     for event in pygame.event.get():
+        if delay:
+            return
         if event.type == pygame.QUIT:
+            gameOver = True
             remaining_health = 0
             playing = False
-            gameOver = True
         elif event.type == pygame.KEYDOWN:
-            if remaining_health == 0:
-                if event.key == QUIT:
-                    playing = False
-                    gameOver = True
-                else:
-                    print("boop")
-                    remaining_health = MAX_HEALTH
-            if event.key == TURN_LEFT or event.key == TURN_RIGHT:
-                rotate(ship, current_time, event.key, ship['rotation_speed'])
-            if event.key == ACCELERATE:
-                ship['propulsion'] = 3
-            if event.key == SHOOT:
-                shooting(ship)
-            if event.key == PAUSE:
-                pause = not pause
+            handling_keys(event.key)
         elif event.type == pygame.KEYUP:
             if event.key == SHOOT:
                 notShooting(ship)
                 
+def handling_keys(key):
+    global pause, remaining_health, gameOver, playing, delay, dead
+    if remaining_health == 0:
+        if key == QUIT:
+            playing = False
+            gameOver = True
+        else:
+            remaining_health = MAX_HEALTH
+    if key == TURN_LEFT or key == TURN_RIGHT:
+        rotate(ship, current_time, key, ship['rotation_speed'])
+    if key == ACCELERATE:
+        ship['propulsion'] = 3
+    if key == SHOOT:
+        shooting(ship)
+    if key == PAUSE:
+        pause = not pause
+    if key == QUIT:
+        gameOver = True
+        remaining_health = 0
+
 
 def shoot():
     bullet_angle = ship['angle']
@@ -620,6 +624,7 @@ def shoot():
     speed_X = math.cos(bullet_angle) * BULLET_SPEED
     speed_Y = math.sin(bullet_angle) * BULLET_SPEED
     newBullet(ship['position'], [speed_X, speed_Y], bullet_angle)
+    
 
 # endregion
 
@@ -630,56 +635,47 @@ pygame.key.set_repeat(100,25)
 window = pygame.display.set_mode(WINDOW_SIZE)
 pygame.display.set_caption('Asteroids: The Original (But Remade Based on What I Think It Is)')
 
+# region # -- INIT -- #
+init_Data()
+
+# Init Scene
+scene = newScene()
 
 font = pygame.font.SysFont('monospace', 40)
 font_score = pygame.font.SysFont('monospace', 30)
 font_title = pygame.font.SysFont('monospace', 80)
 
-
-# region # -- INIT -- #
-init_Data()
-
-# Init Scene
-
-
-
-
-# endregion
-
-
 time = pygame.time.Clock()
 
-remaining_health = 0
-gameOver = False
-pause = False
+# endregion
 playing = True
+delay = False
 
-while playing:
-    delay = False
-    score = 0
-
-    scene = newScene()
-
-    for actor in scene:
-        removeEntity(scene, actor)
-
+while playing == True:
+    displayStartMenu()
     # Init Ship
     newShip()
 
-    # Init Asteroid
+    # Init Asteroids
     i = 0
     while i < 3:
         newAsteroid(3,[0,0])
         i += 1
 
+    gameOver = False
+    pause = False
+    score = 0
     interactions()
     displayStartMenu()
+    remaining_health = 0
 
     pygame.display.flip()
     time.tick(4)
 
     while remaining_health > 0:
         gameOver = False
+        delay = False
+        dead = False
 
         while not gameOver:
             global prev_time
@@ -687,14 +683,19 @@ while playing:
             # --- Traites les interactions --- #
             interactions()
             current_time = pygame.time.get_ticks()
-            window.fill(SPACE_GREY)
             
-            if not pause:
+            if not pause and not delay:
                 update(scene, current_time)
+                if gameOver and remaining_health == 0:
+                    delay = False
 
-            display(scene)    
+            
+
+            displayGame(scene)
+
             pygame.display.flip()
             time.tick(FPS)
+
             prev_time = current_time
 
 pygame.display.quit()
